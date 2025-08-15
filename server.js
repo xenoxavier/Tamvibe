@@ -22,14 +22,14 @@ let chatTimers = new Map();
 
 const CHAT_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
-function findMatch(socket, userInterests = []) {
+function findMatch(socket, userInterests = [], allowAnyMatch = false) {
   if (waitingQueue.length > 0) {
-    // Only match users with at least 1 common interest
     let bestMatch = null;
     let bestMatchIndex = -1;
     let maxCommonInterests = 0;
     let bestCommonInterests = [];
 
+    // First, try to find matches with common interests
     for (let i = 0; i < waitingQueue.length; i++) {
       const potential = waitingQueue[i];
       if (!potential.connected) continue;
@@ -38,8 +38,7 @@ function findMatch(socket, userInterests = []) {
         potential.interests && potential.interests.includes(interest)
       );
       
-      // Only consider matches with at least 1 common interest
-      if (commonInterests.length > 0 && commonInterests.length >= maxCommonInterests) {
+      if (commonInterests.length > maxCommonInterests) {
         maxCommonInterests = commonInterests.length;
         bestMatch = potential;
         bestMatchIndex = i;
@@ -47,7 +46,19 @@ function findMatch(socket, userInterests = []) {
       }
     }
     
-    // If no users with common interests found, don't match yet
+    // If no common interests found and allowAnyMatch is true, match with anyone
+    if (!bestMatch && allowAnyMatch) {
+      for (let i = 0; i < waitingQueue.length; i++) {
+        const potential = waitingQueue[i];
+        if (potential.connected) {
+          bestMatch = potential;
+          bestMatchIndex = i;
+          bestCommonInterests = [];
+          console.log(`Fallback match: ${socket.id} with ${potential.id} (no common interests)`);
+          break;
+        }
+      }
+    }
     
     if (bestMatch && bestMatchIndex !== -1) {
       const partner = bestMatch;
@@ -56,44 +67,76 @@ function findMatch(socket, userInterests = []) {
       console.log(`Matching users: ${socket.id} with ${partner.id}, common interests:`, bestCommonInterests);
       
       if (partner.connected) {
-      const chatId = `${socket.id}-${partner.id}`;
-      
-      activeChatSessions.set(socket.id, {
-        partnerId: partner.id,
-        chatId: chatId,
-        extendRequest: false
-      });
-      
-      activeChatSessions.set(partner.id, {
-        partnerId: socket.id,
-        chatId: chatId,
-        extendRequest: false
-      });
-      
-      socket.emit('partnerFound');
-      partner.emit('partnerFound');
-      
-      // Show the matched interests (we know there's at least 1 since that's how we matched)
-      const displayInterests = bestCommonInterests.map(interest => 
-        interest.charAt(0).toUpperCase() + interest.slice(1)
-      ).join(', ');
-      
-      const message = `🎯 Perfect match! You both love: ${displayInterests} 💫`;
-      socket.emit('systemMessage', message);
-      partner.emit('systemMessage', message);
-      
-      startChatTimer(chatId, socket.id, partner.id);
+        const chatId = `${socket.id}-${partner.id}`;
+        
+        activeChatSessions.set(socket.id, {
+          partnerId: partner.id,
+          chatId: chatId,
+          extendRequest: false
+        });
+        
+        activeChatSessions.set(partner.id, {
+          partnerId: socket.id,
+          chatId: chatId,
+          extendRequest: false
+        });
+        
+        socket.emit('partnerFound');
+        partner.emit('partnerFound');
+        
+        // Show message based on whether interests matched
+        if (bestCommonInterests.length > 0) {
+          const displayInterests = bestCommonInterests.map(interest => 
+            interest.charAt(0).toUpperCase() + interest.slice(1)
+          ).join(', ');
+          const message = `🎯 Perfect match! You both love: ${displayInterests} 💫`;
+          socket.emit('systemMessage', message);
+          partner.emit('systemMessage', message);
+        } else {
+          const message = `🌟 Connected with a tambay buddy! Start the conversation! 💬`;
+          socket.emit('systemMessage', message);
+          partner.emit('systemMessage', message);
+        }
+        
+        startChatTimer(chatId, socket.id, partner.id);
       } else {
         waitingQueue = waitingQueue.filter(user => user.connected);
-        findMatch(socket, userInterests);
+        findMatch(socket, userInterests, allowAnyMatch);
       }
+    } else if (!allowAnyMatch) {
+      // No match found yet, add to queue and set fallback timer
+      socket.interests = userInterests;
+      waitingQueue.push(socket);
+      socket.emit('searching');
+      console.log(`User ${socket.id} added to queue, waiting for match with interests:`, userInterests);
+      
+      // Set fallback timer: after 15 seconds, allow matching with anyone
+      setTimeout(() => {
+        // Check if user is still in queue and not matched
+        if (waitingQueue.find(user => user.id === socket.id) && socket.connected) {
+          console.log(`Fallback matching activated for user ${socket.id}`);
+          // Remove from queue first
+          waitingQueue = waitingQueue.filter(user => user.id !== socket.id);
+          // Try again with allowAnyMatch = true
+          findMatch(socket, userInterests, true);
+        }
+      }, 15000); // 15 seconds fallback
     }
   } else {
-    // No matching users found, add to waiting queue
+    // No users in queue, add this user
     socket.interests = userInterests;
     waitingQueue.push(socket);
     socket.emit('searching');
     console.log(`User ${socket.id} added to queue, waiting for match with interests:`, userInterests);
+    
+    // Set fallback timer for first user too
+    setTimeout(() => {
+      if (waitingQueue.find(user => user.id === socket.id) && socket.connected) {
+        console.log(`Fallback matching activated for user ${socket.id}`);
+        waitingQueue = waitingQueue.filter(user => user.id !== socket.id);
+        findMatch(socket, userInterests, true);
+      }
+    }, 15000);
   }
 }
 
