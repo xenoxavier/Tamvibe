@@ -7,16 +7,14 @@ module.exports = {
     extend: {
       colors: {
         // Pastel teen-friendly colors
-        pastel: {
-          pink: '#FFB3D1',
-          purple: '#D4AFDF', 
-          blue: '#A8DADC',
-          mint: '#B8E6B8',
-          yellow: '#FFE066',
-          peach: '#FFD3A5',
-          lavender: '#E6E6FA',
-          coral: '#FF9F9B'
-        },
+        'pastel-pink': '#FFB3D1',
+        'pastel-purple': '#D4AFDF', 
+        'pastel-blue': '#A8DADC',
+        'pastel-mint': '#B8E6B8',
+        'pastel-yellow': '#FFE066',
+        'pastel-peach': '#FFD3A5',
+        'pastel-lavender': '#E6E6FA',
+        'pastel-coral': '#FF9F9B',
         // Dark variants for better contrast
         deep: {
           purple: '#6B46C1',

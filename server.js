@@ -24,10 +24,11 @@ const CHAT_DURATION = 5 * 60 * 1000; // 5 minutes in milliseconds
 
 function findMatch(socket, userInterests = []) {
   if (waitingQueue.length > 0) {
-    // Try to find a match with common interests first
+    // Only match users with at least 1 common interest
     let bestMatch = null;
     let bestMatchIndex = -1;
     let maxCommonInterests = 0;
+    let bestCommonInterests = [];
 
     for (let i = 0; i < waitingQueue.length; i++) {
       const potential = waitingQueue[i];
@@ -35,26 +36,26 @@ function findMatch(socket, userInterests = []) {
       
       const commonInterests = userInterests.filter(interest => 
         potential.interests && potential.interests.includes(interest)
-      ).length;
+      );
       
-      if (commonInterests > maxCommonInterests) {
-        maxCommonInterests = commonInterests;
+      // Only consider matches with at least 1 common interest
+      if (commonInterests.length > 0 && commonInterests.length >= maxCommonInterests) {
+        maxCommonInterests = commonInterests.length;
         bestMatch = potential;
         bestMatchIndex = i;
+        bestCommonInterests = commonInterests;
       }
     }
     
-    // If no common interests found, take the first available user
-    if (!bestMatch && waitingQueue.length > 0) {
-      bestMatch = waitingQueue.find(user => user.connected);
-      bestMatchIndex = waitingQueue.findIndex(user => user.connected);
-    }
+    // If no users with common interests found, don't match yet
     
     if (bestMatch && bestMatchIndex !== -1) {
       const partner = bestMatch;
       waitingQueue.splice(bestMatchIndex, 1);
-    
-    if (partner.connected) {
+      
+      console.log(`Matching users: ${socket.id} with ${partner.id}, common interests:`, bestCommonInterests);
+      
+      if (partner.connected) {
       const chatId = `${socket.id}-${partner.id}`;
       
       activeChatSessions.set(socket.id, {
@@ -72,68 +73,79 @@ function findMatch(socket, userInterests = []) {
       socket.emit('partnerFound');
       partner.emit('partnerFound');
       
-      const commonInterests = userInterests.filter(interest => 
-        partner.interests && partner.interests.includes(interest)
-      );
+      // Show the matched interests (we know there's at least 1 since that's how we matched)
+      const displayInterests = bestCommonInterests.map(interest => 
+        interest.charAt(0).toUpperCase() + interest.slice(1)
+      ).join(', ');
       
-      if (commonInterests.length > 0) {
-        const displayInterests = commonInterests.map(interest => 
-          interest.charAt(0).toUpperCase() + interest.slice(1)
-        ).join(', ');
-        socket.emit('systemMessage', `Tambay partner found! You both vibe with: ${displayInterests} 💫`);
-        partner.emit('systemMessage', `Tambay partner found! You both vibe with: ${displayInterests} 💫`);
-      } else {
-        socket.emit('systemMessage', 'Tambay partner connected! Start the vibe. 💬');
-        partner.emit('systemMessage', 'Tambay partner connected! Start the vibe. 💬');
-      }
+      const message = `🎯 Perfect match! You both love: ${displayInterests} 💫`;
+      socket.emit('systemMessage', message);
+      partner.emit('systemMessage', message);
       
       startChatTimer(chatId, socket.id, partner.id);
-    } else {
-      waitingQueue = waitingQueue.filter(user => user.connected);
-      findMatch(socket);
+      } else {
+        waitingQueue = waitingQueue.filter(user => user.connected);
+        findMatch(socket, userInterests);
+      }
     }
   } else {
+    // No matching users found, add to waiting queue
     socket.interests = userInterests;
     waitingQueue.push(socket);
     socket.emit('searching');
+    console.log(`User ${socket.id} added to queue, waiting for match with interests:`, userInterests);
   }
 }
 
 function startChatTimer(chatId, userId1, userId2) {
-  const timer = setTimeout(() => {
-    const session1 = activeChatSessions.get(userId1);
-    const session2 = activeChatSessions.get(userId2);
+  let timeLeft = CHAT_DURATION / 1000; // Convert to seconds
+  
+  // Send initial timer
+  io.to(userId1).emit('timerUpdate', timeLeft);
+  io.to(userId2).emit('timerUpdate', timeLeft);
+  
+  const timer = setInterval(() => {
+    timeLeft--;
     
-    if (session1 && session2) {
-      if (session1.extendRequest && session2.extendRequest) {
-        io.to(userId1).emit('systemMessage', 'Chat extended by both users!');
-        io.to(userId2).emit('systemMessage', 'Chat extended by both users!');
-        
-        session1.extendRequest = false;
-        session2.extendRequest = false;
-        activeChatSessions.set(userId1, session1);
-        activeChatSessions.set(userId2, session2);
-        
-        io.to(userId1).emit('chatExtended');
-        io.to(userId2).emit('chatExtended');
-        
-        startChatTimer(chatId, userId1, userId2);
-      } else {
-        io.to(userId1).emit('systemMessage', 'Chat ended due to time limit.');
-        io.to(userId2).emit('systemMessage', 'Chat ended due to time limit.');
-        
-        io.to(userId1).emit('chatEnded');
-        io.to(userId2).emit('chatEnded');
-        
-        disconnectUsers(userId1, userId2);
+    // Send synchronized timer updates every second
+    io.to(userId1).emit('timerUpdate', timeLeft);
+    io.to(userId2).emit('timerUpdate', timeLeft);
+    
+    if (timeLeft <= 0) {
+      clearInterval(timer);
+      chatTimers.delete(chatId);
+      
+      const session1 = activeChatSessions.get(userId1);
+      const session2 = activeChatSessions.get(userId2);
+      
+      if (session1 && session2) {
+        if (session1.extendRequest && session2.extendRequest) {
+          io.to(userId1).emit('systemMessage', 'Chat extended by both users!');
+          io.to(userId2).emit('systemMessage', 'Chat extended by both users!');
+          
+          session1.extendRequest = false;
+          session2.extendRequest = false;
+          activeChatSessions.set(userId1, session1);
+          activeChatSessions.set(userId2, session2);
+          
+          io.to(userId1).emit('chatExtended');
+          io.to(userId2).emit('chatExtended');
+          
+          startChatTimer(chatId, userId1, userId2);
+        } else {
+          io.to(userId1).emit('systemMessage', 'Chat ended due to time limit.');
+          io.to(userId2).emit('systemMessage', 'Chat ended due to time limit.');
+          
+          io.to(userId1).emit('chatEnded');
+          io.to(userId2).emit('chatEnded');
+          
+          disconnectUsers(userId1, userId2);
+        }
       }
     }
-  }, CHAT_DURATION);
+  }, 1000);
   
   chatTimers.set(chatId, timer);
-  
-  io.to(userId1).emit('timerStarted', CHAT_DURATION);
-  io.to(userId2).emit('timerStarted', CHAT_DURATION);
 }
 
 function disconnectUsers(userId1, userId2) {

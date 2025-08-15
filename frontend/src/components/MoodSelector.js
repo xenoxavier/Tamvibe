@@ -17,11 +17,12 @@ const MoodSelector = ({ onMoodChange, selectedMood }) => {
   ];
 
   const handleMoodSelect = (mood) => {
+    console.log('Mood selected:', mood);
     onMoodChange(mood);
     setShowMoods(false);
   };
 
-  const selectedMoodData = moods.find(mood => mood.id === selectedMood);
+  const selectedMoodData = moods.find(mood => mood.id === selectedMood?.id);
 
   return (
     <div className="relative">
@@ -51,7 +52,7 @@ const MoodSelector = ({ onMoodChange, selectedMood }) => {
                 onClick={() => handleMoodSelect(mood)}
                 className={`
                   flex items-center space-x-3 p-3 rounded-xl transition-all duration-200 transform hover:scale-105
-                  ${selectedMood === mood.id
+                  ${selectedMood?.id === mood.id
                     ? `${mood.color} text-gray-800 shadow-lg ring-2 ring-white/30`
                     : 'bg-gray-700 text-gray-300 hover:bg-gray-600'
                   }

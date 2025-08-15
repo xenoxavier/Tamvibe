@@ -133,19 +133,19 @@ const CustomMusicPlayer = ({ autoPlay = false, onToggle, onMusicShare, status = 
 
   if (!showControls) {
     return (
-      <div className="fixed bottom-4 right-4 z-50">
+      <div className="fixed top-1/2 right-4 transform -translate-y-1/2 z-40">
         <div className="flex items-center space-x-2">
           {/* Music Toggle Button */}
           <button
             onClick={allTracks[currentTrack]?.isDefault ? () => setShowControls(true) : (isPlaying ? pauseMusic : playMusic)}
-            className={`p-3 rounded-full hover:bg-opacity-80 transition-all duration-200 transform hover:scale-110 shadow-lg ${
+            className={`p-3 rounded-full hover:bg-opacity-80 transition-all duration-200 transform hover:scale-110 shadow-lg backdrop-blur-sm border border-white/30 ${
               isPlaying && !isMuted 
-                ? 'bg-gradient-to-r from-pastel-pink to-pastel-purple text-gray-800' 
+                ? 'bg-gradient-to-r from-pastel-pink/70 to-pastel-purple/70 text-gray-800' 
                 : isPlaying && isMuted
-                ? 'bg-gray-500 text-white'
+                ? 'bg-gray-500/70 text-white'
                 : allTracks[currentTrack]?.isDefault
-                ? 'bg-pastel-blue text-gray-800'
-                : 'bg-gradient-to-r from-pastel-pink to-pastel-purple text-gray-800'
+                ? 'bg-pastel-blue/70 text-gray-800'
+                : 'bg-gradient-to-r from-pastel-pink/70 to-pastel-purple/70 text-gray-800'
             }`}
             title={
               allTracks[currentTrack]?.isDefault 
@@ -162,8 +162,8 @@ const CustomMusicPlayer = ({ autoPlay = false, onToggle, onMusicShare, status = 
           {isPlaying && !allTracks[currentTrack]?.isDefault && (
             <button
               onClick={toggleMute}
-              className={`p-2 rounded-full hover:bg-opacity-80 transition-all duration-200 ${
-                isMuted ? 'bg-red-500 text-white' : 'bg-pastel-mint text-gray-800'
+              className={`p-2 rounded-full hover:bg-opacity-80 transition-all duration-200 backdrop-blur-sm border border-white/30 ${
+                isMuted ? 'bg-red-500/70 text-white' : 'bg-pastel-mint/70 text-gray-800'
               }`}
               title={isMuted ? "Unmute music" : "Mute music"}
             >
@@ -174,8 +174,8 @@ const CustomMusicPlayer = ({ autoPlay = false, onToggle, onMusicShare, status = 
           {/* Show Controls Button */}
           <button
             onClick={() => setShowControls(true)}
-            className={`backdrop-blur-sm text-white p-2 rounded-full hover:bg-white/30 transition-colors ${
-              status === 'searching' ? 'bg-pastel-yellow/40 animate-pulse' : 'bg-white/20'
+            className={`backdrop-blur-sm text-white p-2 rounded-full hover:bg-white/30 transition-colors border border-white/30 ${
+              status === 'searching' ? 'bg-pastel-yellow/30 animate-pulse' : 'bg-white/10'
             }`}
             title={status === 'searching' ? "Add waiting music!" : "Music controls & add songs"}
           >
@@ -185,8 +185,8 @@ const CustomMusicPlayer = ({ autoPlay = false, onToggle, onMusicShare, status = 
 
         {/* Now Playing Indicator */}
         {isPlaying && !allTracks[currentTrack]?.isDefault && (
-          <div className={`mt-2 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs animate-fade-in max-w-xs ${
-            status === 'searching' ? 'bg-pastel-purple/40 border border-pastel-pink' : 'bg-white/20'
+          <div className={`mt-2 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs animate-fade-in max-w-xs border border-white/30 ${
+            status === 'searching' ? 'bg-pastel-purple/30 border-pastel-pink/50' : 'bg-white/10'
           }`}>
             <div className="flex items-center space-x-2">
               <span>{isMuted ? '🔇' : '🎵'}</span>
@@ -199,7 +199,7 @@ const CustomMusicPlayer = ({ autoPlay = false, onToggle, onMusicShare, status = 
 
         {/* Waiting Message */}
         {status === 'searching' && customMusic.length === 0 && (
-          <div className="mt-2 bg-pastel-yellow/30 backdrop-blur-sm rounded-full px-3 py-1 text-gray-800 text-xs animate-fade-in max-w-xs border border-pastel-yellow">
+          <div className="mt-2 bg-pastel-yellow/20 backdrop-blur-sm rounded-full px-3 py-1 text-white text-xs animate-fade-in max-w-xs border border-pastel-yellow/50">
             <div className="flex items-center space-x-1">
               <span>⏳</span>
               <span>Add music for waiting!</span>
@@ -224,8 +224,8 @@ const CustomMusicPlayer = ({ autoPlay = false, onToggle, onMusicShare, status = 
   }
 
   return (
-    <div className="fixed bottom-4 right-4 z-50">
-      <div className="bg-white/20 backdrop-blur-md rounded-2xl border border-white/30 p-4 w-80 max-h-96 overflow-hidden animate-slide-up">
+    <div className="fixed top-1/2 right-4 transform -translate-y-1/2 z-40">
+      <div className="bg-white/10 backdrop-blur-md rounded-2xl border border-white/30 p-4 w-80 max-h-96 overflow-hidden animate-slide-up">
         {/* Header */}
         <div className="flex justify-between items-center mb-3">
           <h3 className="text-white font-semibold text-sm">

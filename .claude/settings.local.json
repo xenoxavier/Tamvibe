@@ -1,8 +1,16 @@
 {
   "permissions": {
-    "defaultMode": "acceptEdits",
     "allow": [
-      "Bash(mkdir:*)"
-    ]
+      "Bash(mkdir:*)",
+      "Bash(npm start)",
+      "Bash(taskkill:*)",
+      "Bash(set PORT=3001)",
+      "Bash(npm run build:*)",
+      "Bash(start http://localhost:3000)",
+      "Bash(git checkout:*)",
+      "Bash(npx kill-port:*)",
+      "Bash(git add:*)"
+    ],
+    "defaultMode": "acceptEdits"
   }
 }

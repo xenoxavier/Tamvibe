@@ -2,10 +2,9 @@ import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import io from 'socket.io-client';
 import StickerPicker from '../components/StickerPicker';
-import MoodSelector from '../components/MoodSelector';
+import ThemeSelector from '../components/ThemeSelector';
 import IcebreakerGames from '../components/IcebreakerGames';
 import MusicPlayer from '../components/MusicPlayer';
-import CustomMusicPlayer from '../components/CustomMusicPlayer';
 
 const Chat = () => {
   const navigate = useNavigate();
@@ -18,14 +17,90 @@ const Chat = () => {
   const [showExtendButton, setShowExtendButton] = useState(false);
   const [hasRequestedExtend, setHasRequestedExtend] = useState(false);
   const [userInterests, setUserInterests] = useState([]);
-  const [userMood, setUserMood] = useState(null);
   const [showStickerPicker, setShowStickerPicker] = useState(false);
   const [showIcebreakers, setShowIcebreakers] = useState(false);
   const [showMusicPlayer, setShowMusicPlayer] = useState(false);
+  const [showMusicDropdown, setShowMusicDropdown] = useState(false);
   const [chatTheme, setChatTheme] = useState('default');
   const [waitingMusicPlaying, setWaitingMusicPlaying] = useState(false);
+  const [customMusic, setCustomMusic] = useState([]);
+  const [currentTrack, setCurrentTrack] = useState(0);
+  const [isPlaying, setIsPlaying] = useState(false);
+  const [isMuted, setIsMuted] = useState(false);
+  const [newSongTitle, setNewSongTitle] = useState('');
+  const [newSongUrl, setNewSongUrl] = useState('');
+
+  const handleThemeChange = (theme) => {
+    setChatTheme(theme);
+  };
+
+  // Music player functions
+  const defaultTracks = [
+    {
+      id: 'default1',
+      title: 'Add Your First Song!',
+      artist: 'Click + to add YouTube music',
+      url: '',
+      isDefault: true
+    }
+  ];
+
+  const allTracks = customMusic.length > 0 ? customMusic : defaultTracks;
+
+  const getYouTubeID = (url) => {
+    const regExp = /^.*(youtu.be\/|v\/|u\/\w\/|embed\/|watch\?v=|&v=)([^#&?]*).*/;
+    const match = url.match(regExp);
+    return (match && match[2].length === 11) ? match[2] : null;
+  };
+
+  const playMusic = () => {
+    const track = allTracks[currentTrack];
+    if (track && !track.isDefault) {
+      setIsPlaying(true);
+      
+      if (playerRef.current && track.videoId) {
+        playerRef.current.src = `https://www.youtube.com/embed/${track.videoId}?autoplay=1&loop=1&playlist=${track.videoId}`;
+      }
+      
+      if (sendMessage) {
+        sendMessage(`🎵 Now playing: "${track.title}" 🎶`, 'music');
+      }
+    }
+  };
+
+  const pauseMusic = () => {
+    setIsPlaying(false);
+    if (playerRef.current) {
+      playerRef.current.src = '';
+    }
+  };
+
+  const nextTrack = () => {
+    const next = (currentTrack + 1) % allTracks.length;
+    setCurrentTrack(next);
+    if (isPlaying) {
+      setTimeout(() => playMusic(), 500);
+    }
+  };
+
+  const prevTrack = () => {
+    const prev = currentTrack === 0 ? allTracks.length - 1 : currentTrack - 1;
+    setCurrentTrack(prev);
+    if (isPlaying) {
+      setTimeout(() => playMusic(), 500);
+    }
+  };
+
+  const toggleMute = () => {
+    setIsMuted(!isMuted);
+    if (playerRef.current) {
+      playerRef.current.style.display = !isMuted ? 'none' : 'block';
+    }
+  };
+
   const messagesEndRef = useRef(null);
   const timerRef = useRef(null);
+  const playerRef = useRef(null);
 
   const SERVER_URL = process.env.REACT_APP_SERVER_URL || 'http://localhost:3001';
 
@@ -94,8 +169,14 @@ const Chat = () => {
       setTimeLeft(300);
     });
 
-    newSocket.on('timerStarted', (duration) => {
-      startTimer(duration / 1000);
+    newSocket.on('timerUpdate', (seconds) => {
+      setTimeLeft(seconds);
+      // Show extend button when 30 seconds or less remain
+      if (seconds <= 30 && seconds > 0 && !hasRequestedExtend) {
+        setShowExtendButton(true);
+      } else {
+        setShowExtendButton(false);
+      }
     });
 
     return () => {
@@ -104,26 +185,10 @@ const Chat = () => {
     };
   }, [SERVER_URL]);
 
-  const startTimer = (seconds) => {
-    setTimeLeft(seconds);
-    setShowExtendButton(false);
-    setHasRequestedExtend(false);
-    
-    timerRef.current = setInterval(() => {
-      setTimeLeft((prev) => {
-        if (prev <= 31 && prev > 1) {
-          setShowExtendButton(true);
-        }
-        if (prev <= 1) {
-          setShowExtendButton(false);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
+  // Timer is now controlled by server via 'timerUpdate' events
 
   const stopTimer = () => {
+    // Timer cleanup if needed (server controls main timer now)
     if (timerRef.current) {
       clearInterval(timerRef.current);
       timerRef.current = null;
@@ -216,13 +281,13 @@ const Chat = () => {
   };
 
   const chatThemes = {
-    default: 'from-gray-900 via-purple-900 to-gray-900',
-    sunset: 'from-orange-400 via-pink-500 to-purple-600',
-    ocean: 'from-blue-400 via-blue-600 to-purple-700',
-    forest: 'from-green-400 via-green-600 to-blue-700',
-    galaxy: 'from-purple-900 via-blue-900 to-indigo-900',
-    warm: 'from-yellow-400 via-orange-500 to-red-500',
-    cool: 'from-teal-400 via-blue-500 to-indigo-600'
+    default: 'linear-gradient(135deg, #e879f9, #f9a8d4, #bfdbfe)',
+    sunset: 'linear-gradient(135deg, #fed7aa, #fecaca, #f9a8d4)',
+    ocean: 'linear-gradient(135deg, #bfdbfe, #a7f3d0, #e0e7ff)',
+    forest: 'linear-gradient(135deg, #bbf7d0, #fef3c7, #fed7aa)',
+    galaxy: 'linear-gradient(135deg, #ddd6fe, #e0e7ff, #bfdbfe)',
+    warm: 'linear-gradient(135deg, #fef3c7, #fed7aa, #fecaca)',
+    cool: 'linear-gradient(135deg, #a7f3d0, #bfdbfe, #ddd6fe)'
   };
 
   const getReactionEmojis = () => ['❤️', '😂', '😮', '😢', '😡', '👍', '👎', '🔥'];
@@ -231,64 +296,275 @@ const Chat = () => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
 
+  
   return (
-    <div className={`min-h-screen bg-gradient-to-br ${chatThemes[chatTheme]} flex flex-col relative overflow-hidden`}>
+    <div 
+      className="min-h-screen flex flex-col relative overflow-hidden"
+      style={{ 
+        background: chatThemes[chatTheme] || chatThemes.default 
+      }}
+    >
       {/* Animated background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        <div className="absolute -top-4 -left-4 w-72 h-72 bg-pastel-purple rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse-soft"></div>
-        <div className="absolute -bottom-8 -right-4 w-72 h-72 bg-pastel-pink rounded-full mix-blend-multiply filter blur-xl opacity-10 animate-pulse-soft"></div>
+        <div className="absolute -top-4 -left-4 w-72 h-72 bg-pastel-lavender rounded-full mix-blend-soft-light filter blur-xl opacity-30 animate-pulse-soft"></div>
+        <div className="absolute -bottom-8 -right-4 w-72 h-72 bg-pastel-mint rounded-full mix-blend-soft-light filter blur-xl opacity-30 animate-pulse-soft"></div>
+        <div className="absolute top-1/4 left-1/3 w-96 h-96 bg-pastel-peach rounded-full mix-blend-soft-light filter blur-xl opacity-20 animate-pulse-soft"></div>
       </div>
 
-      {/* Header */}
-      <div className="relative z-10 bg-white/10 backdrop-blur-md border-b border-white/20 p-4 flex justify-between items-center">
+      {/* Fixed Header */}
+      <div className="fixed top-0 left-0 right-0 z-50 bg-white/20 backdrop-blur-md border-b border-white/30 p-4 flex justify-between items-center shadow-lg">
         <button
           onClick={() => navigate('/')}
-          className="flex items-center space-x-2 text-pastel-blue hover:text-white transition-colors duration-200 group"
+          className="flex items-center space-x-2 text-gray-800 hover:text-gray-900 transition-colors duration-200 group"
         >
           <span className="text-xl group-hover:transform group-hover:-translate-x-1 transition-transform">←</span>
           <span className="font-medium">Home</span>
         </button>
         
         <div className="flex items-center space-x-3">
-          {/* Music Player */}
+          {/* Music Player Button */}
           <div className="relative">
-            {!showMusicPlayer ? (
-              <button
-                onClick={() => setShowMusicPlayer(true)}
-                className="bg-pastel-purple text-gray-800 p-2 rounded-full hover:bg-opacity-80 transition-colors"
-                title="Music Player"
-              >
-                🎵
-              </button>
-            ) : null}
-          </div>
+            <button
+              onClick={() => setShowMusicDropdown(!showMusicDropdown)}
+              className={`flex items-center space-x-2 backdrop-blur-sm rounded-full px-4 py-2 border border-white/30 transition-all duration-200 hover:bg-white/30 ${
+                showMusicDropdown ? 'bg-white/30' : isPlaying ? 'bg-green-500/30 border-green-400' : 'bg-white/20'
+              }`}
+              title={isPlaying ? `Playing: ${allTracks[currentTrack]?.title || 'Music'}` : "YouTube Music Player"}
+            >
+              <span className="text-lg">
+                {isPlaying ? (isMuted ? '🔇' : '🎵') : '🎵'}
+              </span>
+              <span className={`text-sm font-medium ${isPlaying ? 'text-green-800' : 'text-gray-800'}`}>
+                {isPlaying ? 'Now Playing' : 'Add Music'}
+              </span>
+              {isPlaying && (
+                <div className="flex items-center space-x-1">
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      prevTrack();
+                    }}
+                    className="text-green-700 hover:text-green-900 text-xs"
+                    title="Previous track"
+                  >
+                    ⏮️
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      isPlaying ? pauseMusic() : playMusic();
+                    }}
+                    className="text-green-700 hover:text-green-900 text-xs"
+                    title={isPlaying ? "Pause" : "Play"}
+                  >
+                    {isPlaying ? '⏸️' : '▶️'}
+                  </button>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      nextTrack();
+                    }}
+                    className="text-green-700 hover:text-green-900 text-xs"
+                    title="Next track"
+                  >
+                    ⏭️
+                  </button>
+                </div>
+              )}
+            </button>
 
-          {/* Mood Selector */}
-          <MoodSelector 
-            onMoodChange={setUserMood} 
-            selectedMood={userMood}
-          />
+            {/* Music Dropdown */}
+            {showMusicDropdown && (
+              <div className="absolute top-full mt-2 right-0 bg-white/95 backdrop-blur-md rounded-2xl border-2 border-white p-4 z-50 w-80 shadow-2xl max-h-96 overflow-hidden">
+                <div className="flex justify-between items-center mb-3">
+                  <h3 className="text-gray-800 font-semibold text-sm">
+                    🎵 YouTube Music Player
+                  </h3>
+                  <div className="flex items-center space-x-2">
+                    {isPlaying && (
+                      <div className="text-green-600 text-xs bg-green-100 px-2 py-1 rounded-full">
+                        ♪ Playing
+                      </div>
+                    )}
+                    <button
+                      onClick={() => setShowMusicDropdown(false)}
+                      className="text-gray-600 hover:text-gray-800 px-2 py-1 rounded hover:bg-gray-200"
+                      title="Minimize player (music continues playing)"
+                    >
+                      ➖
+                    </button>
+                  </div>
+                </div>
+
+                {/* Current Track & Controls */}
+                {!allTracks[currentTrack]?.isDefault && (
+                  <div className="bg-gray-100 rounded-xl p-3 mb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <div className="flex-1">
+                        <div className="text-gray-800 font-medium text-sm flex items-center space-x-2">
+                          <span>{allTracks[currentTrack].title}</span>
+                          {isMuted && <span className="text-red-500 text-xs">(Muted)</span>}
+                        </div>
+                        <div className="text-gray-600 text-xs">{allTracks[currentTrack].artist}</div>
+                      </div>
+                      <button
+                        onClick={toggleMute}
+                        className={`p-2 rounded-lg transition-colors ${
+                          isMuted ? 'bg-red-500 text-white' : 'bg-blue-500 text-white'
+                        }`}
+                        title={isMuted ? "Unmute" : "Mute"}
+                      >
+                        {isMuted ? '🔇' : '🔊'}
+                      </button>
+                    </div>
+
+                    {/* Player Controls */}
+                    <div className="flex items-center justify-center space-x-4">
+                      <button
+                        onClick={prevTrack}
+                        className="text-gray-600 hover:text-gray-800 transition-colors"
+                      >
+                        ⏮️
+                      </button>
+                      
+                      <button
+                        onClick={isPlaying ? pauseMusic : playMusic}
+                        className="bg-blue-500 text-white px-4 py-2 rounded-full font-medium hover:bg-blue-600 transition-colors"
+                      >
+                        {isPlaying ? '⏸️ Pause' : '▶️ Play'}
+                      </button>
+                      
+                      <button
+                        onClick={nextTrack}
+                        className="text-gray-600 hover:text-gray-800 transition-colors"
+                      >
+                        ⏭️
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Add Music Form */}
+                <div className="space-y-3 mb-4">
+                  <input
+                    type="text"
+                    placeholder="Song title (e.g., Shape of You)"
+                    value={newSongTitle}
+                    onChange={(e) => setNewSongTitle(e.target.value)}
+                    className="w-full bg-gray-100 text-gray-800 placeholder-gray-500 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 border"
+                  />
+                  <input
+                    type="text"
+                    placeholder="YouTube URL (e.g., https://www.youtube.com/watch?v=...)"
+                    value={newSongUrl}
+                    onChange={(e) => setNewSongUrl(e.target.value)}
+                    className="w-full bg-gray-100 text-gray-800 placeholder-gray-500 px-3 py-2 rounded-lg text-sm focus:outline-none focus:ring-2 focus:ring-blue-400 border"
+                  />
+                  <button
+                    onClick={() => {
+                      if (newSongTitle.trim() && newSongUrl.trim()) {
+                        const videoId = getYouTubeID(newSongUrl);
+                        if (videoId) {
+                          const newSong = {
+                            id: Date.now(),
+                            title: newSongTitle.trim(),
+                            artist: 'Added by you',
+                            url: newSongUrl.trim(),
+                            videoId: videoId,
+                            isDefault: false
+                          };
+                          setCustomMusic(prev => [...prev, newSong]);
+                          setNewSongTitle('');
+                          setNewSongUrl('');
+                          
+                          // Share with partner
+                          if (sendMessage) {
+                            sendMessage(`🎵 Added "${newSong.title}" to playlist`, 'music');
+                          }
+                        } else {
+                          alert('Please enter a valid YouTube URL');
+                        }
+                      }
+                    }}
+                    className="w-full bg-blue-500 text-white py-2 rounded-lg text-sm font-medium hover:bg-blue-600 transition-colors"
+                  >
+                    Add Song
+                  </button>
+                </div>
+
+                {/* Playlist */}
+                <div className="space-y-2 max-h-32 overflow-y-auto">
+                  <div className="text-gray-700 text-xs mb-2">
+                    {customMusic.length > 0 ? '🎵 Your Playlist:' : '➕ Add your favorite YouTube music!'}
+                  </div>
+                  
+                  {allTracks.map((track, index) => (
+                    <div
+                      key={track.id}
+                      className={`flex items-center justify-between p-2 rounded-lg text-xs transition-all duration-200 cursor-pointer ${
+                        currentTrack === index && !track.isDefault
+                          ? 'bg-blue-500 text-white shadow-lg'
+                          : track.isDefault
+                          ? 'bg-gray-200 text-gray-500 border-2 border-dashed border-gray-400'
+                          : 'bg-gray-100 text-gray-800 hover:bg-gray-200'
+                      }`}
+                      onClick={() => {
+                        if (!track.isDefault) {
+                          setCurrentTrack(index);
+                          if (isPlaying) {
+                            setTimeout(() => playMusic(), 100);
+                          }
+                        }
+                      }}
+                    >
+                      <div className="flex-1">
+                        <div className="font-medium">{track.title}</div>
+                        <div className="opacity-70">{track.artist}</div>
+                      </div>
+                      
+                      {!track.isDefault && (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            setCustomMusic(prev => prev.filter(s => s.id !== track.id));
+                            if (currentTrack >= customMusic.length - 1) {
+                              setCurrentTrack(0);
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 ml-2"
+                          title="Remove song"
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+                  
+                  {customMusic.length === 0 && (
+                    <div className="text-center py-4">
+                      <p className="text-gray-500 text-xs mb-1">
+                        🎵 Add your favorite songs from YouTube!
+                      </p>
+                      <p className="text-gray-400 text-xs">
+                        Perfect for waiting and sharing with your tambay buddy
+                      </p>
+                    </div>
+                  )}
+                </div>
+
+              </div>
+            )}
+          </div>
 
           {/* Theme Selector */}
-          <div className="relative">
-            <select
-              value={chatTheme}
-              onChange={(e) => setChatTheme(e.target.value)}
-              className="bg-white/20 backdrop-blur-sm text-white rounded-full px-3 py-2 text-sm border border-white/30 focus:outline-none focus:ring-2 focus:ring-pastel-pink"
-            >
-              <option value="default">🌙 Default</option>
-              <option value="sunset">🌅 Sunset</option>
-              <option value="ocean">🌊 Ocean</option>
-              <option value="forest">🌲 Forest</option>
-              <option value="galaxy">🌌 Galaxy</option>
-              <option value="warm">🔥 Warm</option>
-              <option value="cool">❄️ Cool</option>
-            </select>
-          </div>
+          <ThemeSelector 
+            onThemeChange={handleThemeChange} 
+            selectedTheme={chatTheme}
+          />
 
           {timeLeft > 0 && (
             <div className="bg-white/20 backdrop-blur-sm rounded-full px-4 py-2">
-              <div className="text-pastel-yellow font-mono text-lg font-bold">
+              <div className="text-gray-800 font-mono text-lg font-bold">
                 ⏰ {formatTime(timeLeft)}
               </div>
             </div>
@@ -300,7 +576,7 @@ const Chat = () => {
               status === 'searching' ? 'bg-pastel-yellow' :
               'bg-pastel-coral'
             }`}></div>
-            <span className="text-white font-medium capitalize">
+            <span className="text-gray-800 font-medium capitalize">
               {status === 'connected' ? '💫 Connected' :
                status === 'searching' ? '🔍 Finding tambay buddy...' :
                status === 'disconnected' ? '👋 Partner Left' :
@@ -308,24 +584,50 @@ const Chat = () => {
                '🔄 Connecting...'}
             </span>
           </div>
+
+          {/* Disconnect Button - Only show when connected */}
+          {status === 'connected' && (
+            <button
+              onClick={handleNext}
+              className="flex items-center space-x-2 bg-red-500/80 hover:bg-red-500 backdrop-blur-sm rounded-full px-4 py-2 border border-red-300 transition-all duration-200 transform hover:scale-105"
+              title="Disconnect and find new partner"
+            >
+              <span className="text-white text-sm font-medium">
+                ⏹️ Disconnect
+              </span>
+            </button>
+          )}
         </div>
       </div>
 
+      {/* Hidden YouTube Player - Outside dropdown so it persists when dropdown closes */}
+      <iframe
+        ref={playerRef}
+        style={{ 
+          display: isMuted || !isPlaying ? 'none' : 'block',
+          position: 'absolute',
+          left: '-9999px',
+          width: '1px',
+          height: '1px'
+        }}
+        allow="autoplay"
+      />
+
       {/* Messages */}
-      <div className="relative z-10 flex-1 overflow-y-auto p-4 space-y-4">
+      <div className="relative z-10 flex-1 overflow-y-auto p-4 pt-24 space-y-4">
         {messages.length === 0 && status === 'searching' && (
           <div className="flex items-center justify-center h-full">
             <div className="text-center animate-fade-in">
               <div className="text-6xl mb-4 animate-bounce-gentle">🔍</div>
-              <p className="text-pastel-blue text-lg font-medium">Finding your tambay buddy...</p>
+              <p className="text-gray-800 text-lg font-medium">Finding your tambay buddy...</p>
               {userInterests.length > 0 && (
-                <p className="text-pastel-purple text-sm mt-2">
+                <p className="text-gray-700 text-sm mt-2">
                   Looking for people who vibe with: {userInterests.map(interest => 
                     interest.charAt(0).toUpperCase() + interest.slice(1)
                   ).join(', ')}
                 </p>
               )}
-              <div className="mt-4 text-gray-300 text-sm">
+              <div className="mt-4 text-gray-600 text-sm">
                 <p>🎵 Add your YouTube music while you wait</p>
                 <p className="text-xs mt-1 opacity-70">
                   Click ➕ in bottom-right to add songs • Share with your tambay buddy
@@ -351,8 +653,8 @@ const Chat = () => {
                 message.sender === 'user' 
                   ? 'bg-gradient-to-r from-pastel-pink to-pastel-purple text-gray-900 font-medium'
                   : message.sender === 'system'
-                  ? 'bg-white/20 backdrop-blur-sm text-pastel-blue text-sm border border-white/30'
-                  : 'bg-white/30 backdrop-blur-sm text-white border border-white/20'
+                  ? 'bg-white/20 backdrop-blur-sm text-gray-800 text-sm border border-white/30'
+                  : 'bg-white/30 backdrop-blur-sm text-gray-800 border border-white/20'
               } ${message.type === 'sticker' ? 'text-3xl text-center' : ''} ${
                 message.type === 'game' ? 'border-l-4 border-pastel-yellow' : ''
               }`}>
@@ -360,7 +662,7 @@ const Chat = () => {
                   {message.text}
                 </div>
                 <div className={`text-xs mt-2 ${
-                  message.sender === 'user' ? 'text-gray-700' : 'text-gray-300'
+                  message.sender === 'user' ? 'text-gray-700' : 'text-gray-600'
                 }`}>
                   {message.timestamp}
                 </div>
@@ -450,17 +752,11 @@ const Chat = () => {
           >
             🚀
           </button>
-          <button
-            onClick={handleNext}
-            className="bg-gradient-to-r from-pastel-coral to-pastel-peach text-gray-900 font-bold px-4 py-3 rounded-full transition-all duration-200 transform hover:scale-105 active:scale-95"
-          >
-            ⏭️ Next
-          </button>
         </div>
         
         {status === 'connected' && (
           <div className="mt-3 text-center">
-            <p className="text-pastel-blue text-xs">
+            <p className="text-gray-700 text-xs">
               💡 Tip: Keep the good vibes flowing! Use games and stickers to break the ice!
             </p>
           </div>
@@ -488,7 +784,7 @@ const Chat = () => {
         )}
 
         {showMusicPlayer && (
-          <div className="absolute top-20 right-4 pointer-events-auto">
+          <div className="absolute top-16 left-4 pointer-events-auto">
             <MusicPlayer 
               onMusicShare={sendMessage}
               socket={socket}
@@ -499,13 +795,6 @@ const Chat = () => {
         )}
       </div>
 
-      {/* Custom Music Player - Available all the time */}
-      <CustomMusicPlayer 
-        autoPlay={status === 'searching' && waitingMusicPlaying}
-        onToggle={setWaitingMusicPlaying}
-        onMusicShare={sendMessage}
-        status={status}
-      />
     </div>
   );
 };
