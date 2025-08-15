@@ -9,7 +9,9 @@
       "Bash(start http://localhost:3000)",
       "Bash(git checkout:*)",
       "Bash(npx kill-port:*)",
-      "Bash(git add:*)"
+      "Bash(git add:*)",
+      "Bash(git push:*)",
+      "Bash(timeout:*)"
     ],
     "defaultMode": "acceptEdits"
   }
