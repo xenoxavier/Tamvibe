@@ -30,19 +30,25 @@ function findMatch(socket, userInterests = [], allowAnyMatch = false) {
     let bestCommonInterests = [];
 
     // First, try to find matches with common interests
+    console.log(`💭 User ${socket.id} checking ${waitingQueue.length} users in queue`);
     for (let i = 0; i < waitingQueue.length; i++) {
       const potential = waitingQueue[i];
       if (!potential.connected) continue;
       
+      console.log(`⚖️ Comparing interests: User ${socket.id}(${JSON.stringify(userInterests)}) vs User ${potential.id}(${JSON.stringify(potential.interests)})`);
+      
       const commonInterests = userInterests.filter(interest => 
         potential.interests && potential.interests.includes(interest)
       );
+      
+      console.log(`🎯 Common interests found:`, commonInterests);
       
       if (commonInterests.length > maxCommonInterests) {
         maxCommonInterests = commonInterests.length;
         bestMatch = potential;
         bestMatchIndex = i;
         bestCommonInterests = commonInterests;
+        console.log(`✨ New best match: ${potential.id} with ${commonInterests.length} common interests`);
       }
     }
     
@@ -214,6 +220,7 @@ io.on('connection', (socket) => {
   
   socket.on('findPartner', (data) => {
     const interests = data && data.interests ? data.interests : [];
+    console.log(`🔍 User ${socket.id} looking for match with interests:`, interests);
     findMatch(socket, interests);
   });
   
